@@ -28,7 +28,6 @@ func init() {
 func main() {
 
 	intCh := make(chan time.Time) 
-
 	var envs map[string]string
     envs, err := godotenv.Read(".env")
 	bot, err := tgbotapi.NewBotAPI(envs["TG_API_KEY"])
@@ -52,35 +51,27 @@ func main() {
 
 	/// Start.Goroutine
 	
-	go connectBd(telegramIdI,intCh) 
-	var existbool bool = uniquenessID(telegramIdI)
-	fmt.Println(existbool)
+	var existbool bool = uniqueID(telegramIdI)
+	go connectBd(telegramIdI,intCh,existbool) 
 	fmt.Println("Go routine starts")
-	fmt.Println(<-intCh)
 	clientDate := <-intCh
 	var clienDates string = clientDate.String()
-	var resultMessage string = "Ваш договор еще не связан с Telegram БОТ, для регистрации используйте /reg"
-	var clientId int = telegramIdI;
-	if clientId == telegramIdI {
-		resultMessage = "Дата окончания абонплаты" + " " + clienDates
-	} 
-		// Extract the command from the Message.
-        switch update.Message.Command() {
-		case "start":
-			msg.Text = "Чтобы узнать дату окончания абонплаты используйте /knd,а для продления /extend" + "\n Прогноз погоды /weather"
-        case "tgid":
-            msg.Text = "Ваш TG ID " + telegramIdS 
-		case "knd":
-			msg.Text = resultMessage
-		case "extend":
-			msg.Text = "Продлить абонплату" + envs["EXTEND_API"]
-		case "reg":
-			msg.Text = "Регистрация на сайте https://onlinecab.net/auth/" + " " + "Ваш TelegramID " + telegramIdS
-		case "weather":
-			msg.Text = weather("706524")
-        default:
-            msg.Text = "Чтобы проверить дату окончания абонплаты введите /knd, для продления договора нажмите /extend" 
-        }
+	var elements string = update.Message.Command()
+	if (existbool == true) && (elements == "knd") {
+		msg.Text = "Дата окончания абонплаты" + " " + clienDates
+	}	else if (existbool == false) && (elements == "knd") {
+		msg.Text = "На" + " " + clienDates+ " Вы не зарегистрированы в сервисе" + "\nрегистрация /reg"
+	}	else if elements == "weather" {
+		msg.Text = weather("706524")
+	}	else if elements == "extend" {
+		msg.Text = "Продлить абонплату" + envs["EXTEND_API"]
+	} 	else if elements == "reg" {
+		msg.Text = "Регистрация на сайте https://onlinecab.net/auth/" + " " + "Ваш TelegramID " + telegramIdS
+	}	else {
+		msg.Text = "Чтобы узнать дату окончания абонплаты используйте /knd, а для продления /extend" + "\n Прогноз погоды /weather"
+		}
+		
+		
         if _, err := bot.Send(msg); err != nil {
             log.Panic(err)
         }
@@ -89,8 +80,8 @@ func main() {
 
 	}
 
-func connectBd (parI int, parII chan time.Time){
-	
+func connectBd (parI int, parII chan time.Time, parIII bool ){
+	if parIII == true {
 		var envs map[string]string
 		envs, err := godotenv.Read(".env")
 		db, err := sql.Open("mysql", envs["MYSQL_CONNECT"]) //db_tg?parseTime trick for time.Time
@@ -99,13 +90,6 @@ func connectBd (parI int, parII chan time.Time){
 		}
 		defer db.Close()
 		var telegramS string = strconv.Itoa(int(parI))
-		insert, err := db.Query("INSERT INTO ListID VALUES ("+ telegramS+ ",1002,str_to_date('11-25-2012','%m-%d-%Y'))")
-				 // if there is an error inserting, handle it
-			if err != nil {
-				panic(err.Error())
-		}
-		defer insert.Close()
-
 		res, err := db.Query("SELECT * FROM ListID WHERE TgId="+telegramS)
 		defer res.Close()
 
@@ -117,47 +101,16 @@ func connectBd (parI int, parII chan time.Time){
 		var baseinfo Baseinfo
 
 		err := res.Scan(&baseinfo.TgId, &baseinfo.ServerID, &baseinfo.Userdate)
+
 		parII <- baseinfo.Userdate
 		if err != nil {
 			log.Fatal(err)
 			}
-					
 		}
-		
+	} else {
+		//const layoutISO = "2006-01-02"
+		t := time. Now()
+		parII <- t
 
-}
-func uniquenessID (parI int) (bool) {
+} }
 
-	var envs map[string]string
-	envs, err := godotenv.Read(".env")
-	db, err := sql.Open("mysql", envs["MYSQL_CONNECT"]) //db_tg?parseTime trick for time.Time
-	if err != nil {
-		panic(err.Error())
-	}
-	defer db.Close()
-	var telegramS string = strconv.Itoa(int(parI))
-	res, err := db.Query("SELECT * FROM ListID WHERE TgId="+telegramS)
-	defer res.Close()
-
-	if err != nil {
-		log.Fatal(err)
-	}
-	var returnbool bool
-	for res.Next() {
-	var baseinfo Baseinfo
-	
-	err := res.Scan(&baseinfo.TgId, &baseinfo.ServerID, &baseinfo.Userdate)
-		if err != nil {
-		log.Fatal(err)
-		}
-		
-		if parI == baseinfo.TgId {
-			returnbool = true
-			}	
-	}
-	return returnbool
-	
-		
-		
-
-}
